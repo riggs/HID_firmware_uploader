@@ -1,0 +1,15 @@
+{
+  "name": "crest_firmware_updater",
+  "version": "0.0.1",
+  "description": "Update firmware via USB HID in a Chrome App",
+  "main": "background.js",
+  "dependencies": {
+    "intel-hex": "^0.1.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "riggs@umn.edu",
+  "license": "ISC"
+}

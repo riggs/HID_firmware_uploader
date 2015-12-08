@@ -1,0 +1,22 @@
+{
+  "name": "Firmware_Updater",
+  "description": "PUsh new firmware via USB HID.",
+  "version": "0.0.1",
+  "manifest_version": 2,
+  "app": {
+    "background": {
+      "scripts": [
+        "background.js"
+      ]
+    }
+  },
+  "permissions": [
+    "hid",
+    {"usbDevices": [
+        {"vendorId": 1003, "productId": 8256},
+        {"vendorId": 1003, "productId": 8257}
+    ]},
+    {"fileSystem": ["write", "retainEntries", "directory"]},
+    "storage"
+  ]
+}
