@@ -62,7 +62,9 @@ var onDevicesEnumerated = function (devices) {
 
 var onDeviceAdded = function (device) {
     if (UPLOADING) {
+		logger("Got new device during UPLOADING, connecting...");
         chrome.hid.connect(device.deviceId, connectInfo => {
+			logger("...and connected.");
             CONNECTION_ID = connectInfo.connectionId;
         });
         return;
@@ -86,6 +88,7 @@ var onDeviceAdded = function (device) {
 };
 
 var onDeviceRemoved = function (deviceId) {
+	logger("device " + deviceId + "was removed");
     var option = ui.device_selector.options.namedItem('device-' + deviceId);
     if (!option) {
         return;
@@ -192,17 +195,26 @@ function upload_firmware(file_data) {
         var report_data = new ArrayBuffer(8);
 
         // Write to report to trigger bootloader.
+		logger("Triggering bootloader");
         chrome.hid.sendFeatureReport(CONNECTION_ID, 255, report_data, () => {
-            CONNECTION_ID = null;
-            UPLOADING = true;
-            setTimeout(send_firmware_data(device_info, 0, firmware.data), 0);
+            //CONNECTION_ID = null;
+            //UPLOADING = true;
+			logger(chrome.runtime.lastError);
+			logger("Waiting for connection to reset");
+            chrome.hid.disconnect(CONNECTION_ID, () => {
+	            CONNECTION_ID = null;
+	            UPLOADING = true;
+				setTimeout(() => {send_firmware_data(device_info, 0, firmware.data)}, 2500);
+			});
         });
     });
 }
 
 function send_firmware_data(device_info, address, data_Buffer) {
+	logger("called send_firmware_data");
     if (CONNECTION_ID === null) {
-        setTimeout(send_firmware_data(device_info, address, data_Buffer), 0);
+        setTimeout(() => {send_firmware_data(device_info, address, data_Buffer)}, 500);
+		
         return;
     }
     // Bootloader page data should be the starting address to program,
@@ -217,6 +229,7 @@ function send_firmware_data(device_info, address, data_Buffer) {
         view[0] = 0xFF;
         view[1] = 0xFF;
         chrome.hid.send(CONNECTION_ID, 0, memory_page, () => {
+			console.log(chrome.runtime.lastError);
             logger("Firmware transmission finished.");
         });
         UPLOADING = false;
@@ -230,13 +243,14 @@ function send_firmware_data(device_info, address, data_Buffer) {
     view[1] = page_address >> 8;
 
     // Copy data from firmware Buffer into memory_page to send.
-    for (var i=2; i < 2 + device_info.page_size; ++i) {
-        view[i] = data_Buffer[address + i];
+    for (var i=0; i < device_info.page_size; ++i) {
+        view[i+2] = data_Buffer[address + i];
     }
 
     chrome.hid.send(CONNECTION_ID, 0, memory_page, () => {
+		logger(chrome.runtime.lastError);
         logger("Wrote page address " + address.toString(16));
-        setTimeout(send_firmware_data(device_info, address + device_info.page_size, data_Buffer), 0);
+        setTimeout(() => {send_firmware_data(device_info, address + device_info.page_size, data_Buffer)}, 0);
     });
 }
 
