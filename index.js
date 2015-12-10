@@ -1,5 +1,7 @@
 var intel_hex = require("intel-hex");
 
+var CONNECTION_ID = null;
+
 var ui = {
     device_selector: null,
     connect: null,
@@ -10,11 +12,9 @@ var ui = {
     log: null,
 };
 
-var connection = -1;
-
 var initializeWindow = function () {
     for (var k in ui) {
-        var element = document.getElementById(id);
+        var element = document.getElementById(k);
         if (!element) {
             throw "Missing UI element: " + k;
         }
@@ -22,6 +22,7 @@ var initializeWindow = function () {
     }
     enableIOControls(false);
     ui.connect.addEventListener('click', onConnectClicked);
+    ui.disconnect.addEventListener('click', onDisconnectClicked);
     ui.select_file.addEventListener('click', onSelectFileClicked);
     ui.upload.addEventListener('click', onUploadClicked);
     enumerateDevices();
@@ -29,13 +30,14 @@ var initializeWindow = function () {
 
 var logger = function (message) {
     ui.log.textContent += (message + "\n");
-    ui.log.scrollTop = ui.inputLog.scrollHeight;
+    ui.log.scrollTop = ui.log.scrollHeight;
 };
 
 var enableIOControls = function (ioEnabled) {
     ui.device_selector.disabled = ioEnabled;
     ui.connect.style.display = ioEnabled ? 'none' : 'inline';
     ui.disconnect.style.display = ioEnabled ? 'inline' : 'none';
+    ui.upload.disabled = ui.file_path.innerText === "" ? true : !ioEnabled;
 };
 
 var enumerateDevices = function () {
@@ -100,19 +102,22 @@ var onConnectClicked = function () {
         if (!connectInfo) {
             console.warn("Unable to connect to device.");
         }
-        selectedItem.connectionId = connectInfo.connectionId;
-        logger("Connected to " + selectedItem + "on ID " + selectedItem.connectionId);
+        CONNECTION_ID = connectInfo.connectionId;
+        logger("Connected to [" +
+            selectedItem.device.vendorId.toString(16) + ":" + selectedItem.device.productId.toString(16) +
+            "] on ID " + CONNECTION_ID);
         enableIOControls(true);
     });
 };
 
 var onDisconnectClicked = function () {
-    if (connection === -1)
+    if (CONNECTION_ID === null) {
         return;
-    chrome.hid.disconnect(connection, function () {
-        connection = -1;
+    }
+    chrome.hid.disconnect(CONNECTION_ID, function () {
+        CONNECTION_ID = null;
     });
-    logger("Disconnected ID " + connection);
+    logger("Disconnected ID " + CONNECTION_ID);
     enableIOControls(false);
 };
 
@@ -123,11 +128,13 @@ var clearFileUI = function () {
 
 var onSelectFileClicked = function () {
     clearFileUI();
-    chrome.fileSystem.chooseEntry({accepts: [{extensions: "hex"}]}, function (entry) {
+    chrome.fileSystem.chooseEntry({accepts: [{extensions: ["hex"]}]}, function (entry) {
         if (!entry) {
             return;
         }
-        ui.upload.disabled = false;
+        if (CONNECTION_ID != null) {
+            ui.upload.disabled = false;
+        }
 
         chrome.fileSystem.getDisplayPath(entry, function (displayPath) {
             ui.file_path.innerText = displayPath;
@@ -173,24 +180,17 @@ function upload_firmware(file_data) {
         var firmware = intel_hex.parse(text);
         var selectedItem = ui.device_selector.options[ui.device_selector.selectedIndex];
         var device = selectedItem.device;
-        var connectionId = selectedItem.connectionId;
         var device_info = get_device_info(device.vendorId, device.productId);
         var report_data = new ArrayBuffer(8);
 
         // Write to report to trigger bootloader.
-        chrome.hid.sendFeatureReport(connectionId, 255, report_data, () => {
-            send_firmware_data(connectionId, device_info, 0, firmware.data);
+        chrome.hid.sendFeatureReport(CONNECTION_ID, 255, report_data, () => {
+            setTimeout(send_firmware_data(device_info, 0, firmware.data), 0);
         });
     });
 }
 
-function send_firmware_data(connectionId, device_info, address, data_Buffer) {
-    if (address > data_Buffer.length) {
-        chrome.hid.send(0, 0xFFFF, new ArrayBuffer(device_info.page_size), () => {
-            logger("Firmware transmission finished.");
-        });
-        return;
-    }
+function send_firmware_data(device_info, address, data_Buffer) {
     // Bootloader page data should be the starting address to program,
     // then one device's flash page worth of data.
     var memory_page = new ArrayBuffer(2 + device_info.page_size);
@@ -198,6 +198,15 @@ function send_firmware_data(connectionId, device_info, address, data_Buffer) {
     // Create a view that will address single bytes.
     var view = new Uint8Array(memory_page);
 
+    // Send a final page with an address of 0xFFFF and all 0's for data.
+    if (address > data_Buffer.length) {
+        view[0] = 0xFF;
+        view[1] = 0xFF;
+        chrome.hid.send(CONNECTION_ID, 0, memory_page, () => {
+            logger("Firmware transmission finished.");
+        });
+        return;
+    }
     // Devices with more than 64KB of flash should shift down the page
     // address so that it is 16-bit (page size is guaranteed to be
     // >= 256 bytes so no non-zero address bits are discarded)
@@ -210,10 +219,10 @@ function send_firmware_data(connectionId, device_info, address, data_Buffer) {
         view[i] = data_Buffer[address + i];
     }
 
-    chrome.hid.send(connectionId, memory_page, () => {
+    chrome.hid.send(CONNECTION_ID, 0, memory_page, () => {
         logger("Wrote page address " + address.toString(16));
-        send_firmware_data(connectionId, device_info, address + device_info.page_size, data_Buffer);
-    })
+        setTimeout(send_firmware_data(device_info, address + device_info.page_size, data_Buffer), 0);
+    });
 }
 
 function errorHandler(e) {
