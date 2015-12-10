@@ -202,7 +202,7 @@ function upload_firmware(file_data) {
             UPLOADING = true;
             chrome.hid.disconnect(CONNECTION_ID, () => {
                 CONNECTION_ID = null;
-                setTimeout(() => {send_firmware_data(device_info, 0, firmware.data)}, 2500);
+                send_firmware_data(device_info, 0, firmware.data);
             });
         });
     });
@@ -211,7 +211,7 @@ function upload_firmware(file_data) {
 function send_firmware_data(device_info, address, data_Buffer) {
 	logger("called send_firmware_data");
     if (CONNECTION_ID === null) {
-        setTimeout(() => {send_firmware_data(device_info, address, data_Buffer)}, 500);
+        setTimeout(send_firmware_data(device_info, address, data_Buffer), 500);
 		
         return;
     }
