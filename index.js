@@ -2,6 +2,8 @@ var intel_hex = require("intel-hex");
 
 var CONNECTION_ID = null;
 
+var UPLOADING = false;
+
 var ui = {
     device_selector: null,
     connect: null,
@@ -59,6 +61,12 @@ var onDevicesEnumerated = function (devices) {
 };
 
 var onDeviceAdded = function (device) {
+    if (UPLOADING) {
+        chrome.hid.connect(device.deviceId, connectInfo => {
+            CONNECTION_ID = connectInfo.connectionId;
+        });
+        return;
+    }
     var optionId = 'device-' + device.deviceId;
     if (ui.device_selector.namedItem(optionId)) {
         return;
@@ -185,12 +193,18 @@ function upload_firmware(file_data) {
 
         // Write to report to trigger bootloader.
         chrome.hid.sendFeatureReport(CONNECTION_ID, 255, report_data, () => {
+            CONNECTION_ID = null;
+            UPLOADING = true;
             setTimeout(send_firmware_data(device_info, 0, firmware.data), 0);
         });
     });
 }
 
 function send_firmware_data(device_info, address, data_Buffer) {
+    if (CONNECTION_ID === null) {
+        setTimeout(send_firmware_data(device_info, address, data_Buffer), 0);
+        return;
+    }
     // Bootloader page data should be the starting address to program,
     // then one device's flash page worth of data.
     var memory_page = new ArrayBuffer(2 + device_info.page_size);
@@ -205,6 +219,7 @@ function send_firmware_data(device_info, address, data_Buffer) {
         chrome.hid.send(CONNECTION_ID, 0, memory_page, () => {
             logger("Firmware transmission finished.");
         });
+        UPLOADING = false;
         return;
     }
     // Devices with more than 64KB of flash should shift down the page
