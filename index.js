@@ -195,16 +195,17 @@ function upload_firmware(file_data) {
         var report_data = new ArrayBuffer(8);
 
         // Write to report to trigger bootloader.
-		logger("Entering bootloader");
+		console.log("Triggering bootloader");
+		console.log(chrome.runtime.lastError);
         chrome.hid.sendFeatureReport(CONNECTION_ID, 255, report_data, () => {
 			console.log(chrome.runtime.lastError);
 			console.log("Waiting for connection to reset");
             UPLOADING = true;
-            chrome.hid.disconnect(CONNECTION_ID, () => {
-                console.log("Disconnected");
+            //chrome.hid.disconnect(CONNECTION_ID, () => {
+			
                 CONNECTION_ID = null;
-                setTimeout(() => {send_firmware_data(device_info, 0, firmware.data)}, 0);
-            });
+                send_firmware_data(device_info, 0, firmware.data);
+			//});
         });
     });
 }
@@ -212,7 +213,7 @@ function upload_firmware(file_data) {
 function send_firmware_data(device_info, address, data_Buffer) {
 	console.log("called send_firmware_data");
     if (CONNECTION_ID === null) {
-        setTimeout(() => {send_firmware_data(device_info, address, data_Buffer)}, 100);
+        setTimeout(() => {send_firmware_data(device_info, address, data_Buffer)}, 500);
         return;
     }
     // Bootloader page data should be the starting address to program,
