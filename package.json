@@ -1,6 +1,7 @@
 {
   "name": "crest_firmware_updater",
   "version": "0.0.1",
+  "private": true,
   "description": "Update firmware via USB HID in a Chrome App",
   "main": "background.js",
   "dependencies": {
