@@ -4,7 +4,6 @@ var ui = {
     device_selector: null,
     connect: null,
     disconnect: null,
-    add_device: null,
     select_file: null,
     file_path: null,
     upload: null,
@@ -23,8 +22,6 @@ var initializeWindow = function () {
     }
     enableIOControls(false);
     ui.connect.addEventListener('click', onConnectClicked);
-    ui.disconnect.addEventListener('click', onDisconnectClicked);
-    ui.add_device.addEventListener('click', onAddDeviceClicked);
     ui.select_file.addEventListener('click', onSelectFileClicked);
     ui.upload.addEventListener('click', onUploadClicked);
     enumerateDevices();
@@ -103,8 +100,8 @@ var onConnectClicked = function () {
         if (!connectInfo) {
             console.warn("Unable to connect to device.");
         }
-        connection = connectInfo.connectionId;
-        logger("Connected to " + selectedItem + "on ID " + connection);
+        selectedItem.connectionId = connectInfo.connectionId;
+        logger("Connected to " + selectedItem + "on ID " + selectedItem.connectionId);
         enableIOControls(true);
     });
 };
@@ -117,20 +114,6 @@ var onDisconnectClicked = function () {
     });
     logger("Disconnected ID " + connection);
     enableIOControls(false);
-};
-
-var onAddDeviceClicked = function () {
-    chrome.hid.getUserSelectedDevices({'multiple': false},
-        function (devices) {
-            if (chrome.runtime.lastError != undefined) {
-                console.warn('chrome.hid.getUserSelectedDevices error: ' +
-                    chrome.runtime.lastError.message);
-                return;
-            }
-            for (var device of devices) {
-                onDeviceAdded(device);
-            }
-        });
 };
 
 var clearFileUI = function () {
@@ -170,24 +153,67 @@ var onUploadClicked = function () {
             // the entry is still there, load the content
             chrome.fileSystem.restoreEntry(items.chosenFile, function (entry) {
                 if (!entry) {
+                    logger("Failed to load file.");
                     clearFileUI();
                     return;
                 }
+
                 upload_firmware(entry);
             });
         });
     });
 };
 
-function upload_firmware(file_entry) {
-    readAsText(file_entry, function (text) {
+function upload_firmware(file_data) {
+    // Read in Intel-Hex text from file
+    readAsText(file_data, function (text) {
+        chrome.fileSystem.getDisplayPath(file_data, function (displayPath) {
+            logger("Parsed " + displayPath);
+        });
         var firmware = intel_hex.parse(text);
-        var device = ui.device_selector.options[ui.device_selector.selectedIndex].device;
+        var selectedItem = ui.device_selector.options[ui.device_selector.selectedIndex];
+        var device = selectedItem.device;
+        var connectionId = selectedItem.connectionId;
         var device_info = get_device_info(device.vendorId, device.productId);
+        var report_data = new ArrayBuffer(8);
 
-        // TODO: Trigger bootloader by writing to proper report.
-        // TODO: Upload firmware file.
+        // Write to report to trigger bootloader.
+        chrome.hid.sendFeatureReport(connectionId, 255, report_data, () => {
+            send_firmware_data(connectionId, device_info, 0, firmware.data);
+        });
     });
+}
+
+function send_firmware_data(connectionId, device_info, address, data_Buffer) {
+    if (address > data_Buffer.length) {
+        chrome.hid.send(0, 0xFFFF, new ArrayBuffer(device_info.page_size), () => {
+            logger("Firmware transmission finished.");
+        });
+        return;
+    }
+    // Bootloader page data should be the starting address to program,
+    // then one device's flash page worth of data.
+    var memory_page = new ArrayBuffer(2 + device_info.page_size);
+
+    // Create a view that will address single bytes.
+    var view = new Uint8Array(memory_page);
+
+    // Devices with more than 64KB of flash should shift down the page
+    // address so that it is 16-bit (page size is guaranteed to be
+    // >= 256 bytes so no non-zero address bits are discarded)
+    var page_address = device_info.flash_kb < 64 ? address : address >> 8;
+    view[0] = page_address;
+    view[1] = page_address >> 8;
+
+    // Copy data from firmware Buffer into memory_page to send.
+    for (var i=2; i < 2 + device_info.page_size; ++i) {
+        view[i] = data_Buffer[address + i];
+    }
+
+    chrome.hid.send(connectionId, memory_page, () => {
+        logger("Wrote page address " + address.toString(16));
+        send_firmware_data(connectionId, device_info, address + device_info.page_size, data_Buffer);
+    })
 }
 
 function errorHandler(e) {
