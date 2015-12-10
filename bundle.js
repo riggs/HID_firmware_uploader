@@ -63,9 +63,9 @@ var onDevicesEnumerated = function (devices) {
 
 var onDeviceAdded = function (device) {
     if (UPLOADING) {
-		logger("Got new device during UPLOADING, connecting...");
+		console.log("Connectiong to bootloader.");
         chrome.hid.connect(device.deviceId, connectInfo => {
-			logger("...and connected.");
+			console.log("Connected to bootloadr.");
             CONNECTION_ID = connectInfo.connectionId;
         });
         return;
@@ -196,24 +196,24 @@ function upload_firmware(file_data) {
         var report_data = new ArrayBuffer(8);
 
         // Write to report to trigger bootloader.
-		logger("Triggering bootloader");
+		logger("Entering bootloader");
         chrome.hid.sendFeatureReport(CONNECTION_ID, 255, report_data, () => {
-			logger(chrome.runtime.lastError);
-			logger("Waiting for connection to reset");
+			console.log(chrome.runtime.lastError);
+			console.log("Waiting for connection to reset");
             UPLOADING = true;
             chrome.hid.disconnect(CONNECTION_ID, () => {
+                console.log("Disconnected");
                 CONNECTION_ID = null;
-                send_firmware_data(device_info, 0, firmware.data);
+                setTimeout(() => {send_firmware_data(device_info, 0, firmware.data)}, 0);
             });
         });
     });
 }
 
 function send_firmware_data(device_info, address, data_Buffer) {
-	logger("called send_firmware_data");
+	console.log("called send_firmware_data");
     if (CONNECTION_ID === null) {
-        setTimeout(send_firmware_data(device_info, address, data_Buffer), 500);
-		
+        setTimeout(() => {send_firmware_data(device_info, address, data_Buffer)}, 100);
         return;
     }
     // Bootloader page data should be the starting address to program,
@@ -247,7 +247,7 @@ function send_firmware_data(device_info, address, data_Buffer) {
     }
 
     chrome.hid.send(CONNECTION_ID, 0, memory_page, () => {
-		logger(chrome.runtime.lastError);
+		console.log(chrome.runtime.lastError);
         logger("Wrote page address " + address.toString(16));
         setTimeout(() => {send_firmware_data(device_info, address + device_info.page_size, data_Buffer)}, 0);
     });

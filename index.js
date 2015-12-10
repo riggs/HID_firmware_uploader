@@ -62,9 +62,9 @@ var onDevicesEnumerated = function (devices) {
 
 var onDeviceAdded = function (device) {
     if (UPLOADING) {
-		console.log("Got new device during UPLOADING, connecting...");
+		console.log("Connectiong to bootloader.");
         chrome.hid.connect(device.deviceId, connectInfo => {
-			console.log("...and connected.");
+			console.log("Connected to bootloadr.");
             CONNECTION_ID = connectInfo.connectionId;
         });
         return;
@@ -214,7 +214,6 @@ function send_firmware_data(device_info, address, data_Buffer) {
 	console.log("called send_firmware_data");
     if (CONNECTION_ID === null) {
         setTimeout(() => {send_firmware_data(device_info, address, data_Buffer)}, 500);
-		
         return;
     }
     // Bootloader page data should be the starting address to program,
@@ -248,7 +247,7 @@ function send_firmware_data(device_info, address, data_Buffer) {
     }
 
     chrome.hid.send(CONNECTION_ID, 0, memory_page, () => {
-		logger(chrome.runtime.lastError);
+		console.log(chrome.runtime.lastError);
         logger("Wrote page address " + address.toString(16));
         setTimeout(() => {send_firmware_data(device_info, address + device_info.page_size, data_Buffer)}, 0);
     });
