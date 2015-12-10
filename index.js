@@ -197,15 +197,13 @@ function upload_firmware(file_data) {
         // Write to report to trigger bootloader.
 		logger("Triggering bootloader");
         chrome.hid.sendFeatureReport(CONNECTION_ID, 255, report_data, () => {
-            //CONNECTION_ID = null;
-            //UPLOADING = true;
 			logger(chrome.runtime.lastError);
 			logger("Waiting for connection to reset");
+            UPLOADING = true;
             chrome.hid.disconnect(CONNECTION_ID, () => {
-	            CONNECTION_ID = null;
-	            UPLOADING = true;
-				setTimeout(() => {send_firmware_data(device_info, 0, firmware.data)}, 2500);
-			});
+                CONNECTION_ID = null;
+                setTimeout(() => {send_firmware_data(device_info, 0, firmware.data)}, 2500);
+            });
         });
     });
 }
