@@ -2,10 +2,10 @@
 
 ## To install:
 
-`git clone git@github.com:riggs/HID_firmware_uploader.git`
+`git clone git@github.com:riggs/HID_firmware_uploader.git` or [Download ZIP](https://github.com/riggs/HID_firmware_uploader/archive/master.zip)
 
 Then follow the instructions for [step 5 here](https://developer.chrome.com/apps/first_app#five "Chrome App Development"),
-selecting the folder created by git.
+selecting the folder created earlier.
 
 ### To develop:
 `npm install riggs/HID_firmware_uploader`
