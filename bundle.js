@@ -70,6 +70,7 @@ var onDeviceAdded = function (device) {
         });
         return;
     }
+    logger("Device detected.");
     var optionId = 'device-' + device.deviceId;
     if (ui.device_selector.namedItem(optionId)) {
         return;
@@ -89,7 +90,7 @@ var onDeviceAdded = function (device) {
 };
 
 var onDeviceRemoved = function (deviceId) {
-	logger("device " + deviceId + "was removed");
+    logger("Device Removed.");
     var option = ui.device_selector.options.namedItem('device-' + deviceId);
     if (!option) {
         return;

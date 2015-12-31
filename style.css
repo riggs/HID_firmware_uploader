@@ -1,11 +1,52 @@
 body {
-  font-family: monospace;
-  font-size: 10pt;
+  font-family: sans-serif;
+  font-size: 14px;
   display: flex;
   flex-flow: row wrap;
 }
 
+
 div {
   padding: 8px;
   flex: 1 100%;
+}
+
+#wrapper > div{
+  margin: 5px;
+  border: none;
+  box-shadow: 0px 3px 7px #000000;
+}
+
+#wrapper{
+  width: 595px;
+  margin: 0 auto;
+}
+
+#devices{}
+h1,h2{
+  padding: 3px;
+}
+
+#devices > button, #file_upload > button{
+  outline: none;
+  border: none;
+  border-radius: 25px;
+  font-weight: bold;
+}
+
+#devices > button:hover:enabled, #file_upload > button:hover:enabled{
+  background-color: #000000;
+  color: #ffffff;
+}
+
+#file_upload{}
+#logger{}
+#log {
+  background-color: #000000;
+  height: 150px;
+  width: 99%;
+  resize: both;
+  font-family: 'Courier New', Courier, 'Lucida Sans Typewriter', 'Lucida Typewriter', monospace;
+  color: #00ff00;
+  font-size: 14px
 }
