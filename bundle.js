@@ -14,7 +14,8 @@ var ui = {
     select_file: null,
     file_path: null,
     upload: null,
-    raw_hex: null,
+    poll: null,
+    raw: null,
     log: null,
 };
 
@@ -31,7 +32,7 @@ var initializeWindow = function () {
     ui.disconnect.addEventListener('click', onDisconnectClicked);
     ui.select_file.addEventListener('click', onSelectFileClicked);
     ui.upload.addEventListener('click', onUploadClicked);
-    ui.raw_hex.addEventListener('change', onRawHexChanged);
+    ui.poll.addEventListener('change', onPollChanged);
     enumerateDevices();
 };
 
@@ -48,12 +49,17 @@ function hex_parser(buffer) {
         .join(" ");
 }
 
+function string_parser(buffer) {
+    return new TextDecoder('utf-8').decode(buffer);
+}
+
 var enableIOControls = function (ioEnabled) {
     ui.device_selector.disabled = ioEnabled;
     ui.connect.style.display = ioEnabled ? 'none' : 'inline';
     ui.disconnect.style.display = ioEnabled ? 'inline' : 'none';
     ui.upload.disabled = ui.file_path.innerText === "" ? true : !ioEnabled;
-    ui.raw_hex.disabled = !ioEnabled;
+    ui.poll.disabled = !ioEnabled;
+    ui.raw.disabled = !ioEnabled;
 };
 
 var enumerateDevices = function () {
@@ -171,16 +177,17 @@ var onSelectFileClicked = function () {
     });
 };
 
-var onRawHexChanged = function () {
+var onPollChanged = function () {
     if (CONNECTION_ID === null) {
         enableIOControls(false);
         clearTimeout(POLLER_ID);
         return;
     }
-    if (ui.raw_hex.checked === true) {
+    if (ui.poll.checked === true) {
+        parser = ui.raw.checked ? hex_parser : string_parser;
         chrome.hid.receive(CONNECTION_ID, (report_ID, buffer) => {
-            logger(report_ID + " " + hex_parser(buffer));
-            POLLER_ID = setTimeout(onRawHexChanged, 0);
+            logger(report_ID + ": " + parser(buffer));
+            POLLER_ID = setTimeout(onPollChanged, 0);
         })
     } else {
         clearTimeout(POLLER_ID);
