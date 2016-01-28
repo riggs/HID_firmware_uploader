@@ -4,6 +4,8 @@ var CONNECTION_ID = null;
 
 var UPLOADING = false;
 
+var POLLER_ID = null;
+
 var ui = {
     device_selector: null,
     connect: null,
@@ -11,6 +13,7 @@ var ui = {
     select_file: null,
     file_path: null,
     upload: null,
+    raw_hex: null,
     log: null,
 };
 
@@ -27,6 +30,7 @@ var initializeWindow = function () {
     ui.disconnect.addEventListener('click', onDisconnectClicked);
     ui.select_file.addEventListener('click', onSelectFileClicked);
     ui.upload.addEventListener('click', onUploadClicked);
+    ui.raw_hex.addEventListener('change', onRawHexChanged);
     enumerateDevices();
 };
 
@@ -35,11 +39,21 @@ var logger = function (message) {
     ui.log.scrollTop = ui.log.scrollHeight;
 };
 
+function hex_parser(buffer) {
+    return Array.from(new Uint8Array(buffer))
+        .map(function(i) {
+            return Number.prototype.toString.call(i, 16).toUpperCase();
+        })
+        .join(" ");
+}
+
 var enableIOControls = function (ioEnabled) {
     ui.device_selector.disabled = ioEnabled;
     ui.connect.style.display = ioEnabled ? 'none' : 'inline';
     ui.disconnect.style.display = ioEnabled ? 'inline' : 'none';
     ui.upload.disabled = ui.file_path.innerText === "" ? true : !ioEnabled;
+    ui.raw_hex.checked = false;
+    ui.raw_hex.disabled = ioEnabled;
 };
 
 var enumerateDevices = function () {
@@ -155,6 +169,22 @@ var onSelectFileClicked = function () {
         // use local storage to retain access to this file
         chrome.storage.local.set({'chosenFile': chrome.fileSystem.retainEntry(entry)});
     });
+};
+
+var onRawHexChanged = function () {
+    if (CONNECTION_ID === null) {
+        enableIOControls(false);
+        clearTimeout(POLLER_ID);
+        return;
+    }
+    if (ui.raw_hex.checked == true) {
+        chrome.hid.receive(CONNECTION_ID, buffer => {
+            logger(hex_parser(buffer));
+            POLLER_ID = setTimeout(onRawHexClicked, 0);
+        })
+    } else {
+        clearTimeout(POLLER_ID);
+    }
 };
 
 var onUploadClicked = function () {
