@@ -52,8 +52,7 @@ var enableIOControls = function (ioEnabled) {
     ui.connect.style.display = ioEnabled ? 'none' : 'inline';
     ui.disconnect.style.display = ioEnabled ? 'inline' : 'none';
     ui.upload.disabled = ui.file_path.innerText === "" ? true : !ioEnabled;
-    ui.raw_hex.checked = false;
-    ui.raw_hex.disabled = ioEnabled;
+    ui.raw_hex.disabled = !ioEnabled;
 };
 
 var enumerateDevices = function () {
@@ -177,10 +176,10 @@ var onRawHexChanged = function () {
         clearTimeout(POLLER_ID);
         return;
     }
-    if (ui.raw_hex.checked == true) {
-        chrome.hid.receive(CONNECTION_ID, buffer => {
-            logger(hex_parser(buffer));
-            POLLER_ID = setTimeout(onRawHexClicked, 0);
+    if (ui.raw_hex.checked === true) {
+        chrome.hid.receive(CONNECTION_ID, (report_ID, buffer) => {
+            logger(report_ID + " " + hex_parser(buffer));
+            POLLER_ID = setTimeout(onRawHexChanged, 0);
         })
     } else {
         clearTimeout(POLLER_ID);
