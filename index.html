@@ -25,9 +25,15 @@
     <div id="file_path"></div>
     <button id="upload" disabled>Upload</button>
   </div>
-  <div id="hex">
+  <div id="io">
     <label><input type="checkbox" id="poll"> Poll Device</label>
     <label><input type="checkbox" id="raw"> Display Raw Hex</label>
+    <div id="input">
+      Report ID: <select id="report_ID_selector"></select>
+      Value: <input type="text" id="input_value">
+      <label><input type="checkbox" id="raw_input"> Input Raw Hex</label>
+      <button id="send_input" disabled>Send</button>
+    </div>
   </div>
   <div id="logger">
     <h3>Activity Log</h3>

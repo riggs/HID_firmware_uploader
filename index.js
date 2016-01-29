@@ -1,3 +1,8 @@
+/**
+ * Created by riggs on 1/16/16.
+ */
+"use strict";
+
 var intel_hex = require("intel-hex");
 
 var CONNECTION_ID = null;
@@ -15,6 +20,10 @@ var ui = {
     upload: null,
     poll: null,
     raw: null,
+    report_ID_selector: null,
+    input_value: null,
+    raw_input: null,
+    send_input: null,
     log: null,
 };
 
@@ -31,7 +40,8 @@ var initializeWindow = function () {
     ui.disconnect.addEventListener('click', onDisconnectClicked);
     ui.select_file.addEventListener('click', onSelectFileClicked);
     ui.upload.addEventListener('click', onUploadClicked);
-    ui.poll.addEventListener('change', onPollChanged);
+    ui.poll.addEventListener('change', poll_changed);
+    ui.send_input.addEventListener('click', send_input_clicked);
     enumerateDevices();
 };
 
@@ -40,7 +50,7 @@ var logger = function (message) {
     ui.log.scrollTop = ui.log.scrollHeight;
 };
 
-function hex_parser(buffer) {
+function hex_parser (buffer) {
     return Array.from(new Uint8Array(buffer))
         .map(function(i) {
             return Number.prototype.toString.call(i, 16).toUpperCase();
@@ -48,8 +58,16 @@ function hex_parser(buffer) {
         .join(" ");
 }
 
-function string_parser(buffer) {
+function hex_encoder (string) {
+
+}
+
+function string_parser (buffer) {
     return new TextDecoder('utf-8').decode(buffer);
+}
+
+function string_encoder (text) {
+    return new TextEncoder('utf-i').encode(string);
 }
 
 var enableIOControls = function (ioEnabled) {
@@ -59,6 +77,7 @@ var enableIOControls = function (ioEnabled) {
     ui.upload.disabled = ui.file_path.innerText === "" ? true : !ioEnabled;
     ui.poll.disabled = !ioEnabled;
     ui.raw.disabled = !ioEnabled;
+    ui.send_input.disabled = !ioEnabled;
 };
 
 var enumerateDevices = function () {
@@ -121,7 +140,8 @@ var onDeviceRemoved = function (deviceId) {
 };
 
 var onConnectClicked = function () {
-    var selectedItem = ui.device_selector.options[ui.device_selector.selectedIndex];
+    var selectedItem = ui.device_selector.options[ui.device_selector.selectedIndex],
+        device = selectedItem.device;
     if (!selectedItem) {
         return;
     }
@@ -131,9 +151,23 @@ var onConnectClicked = function () {
     }
     chrome.hid.connect(deviceId, function (connectInfo) {
         if (!connectInfo) {
-            console.warn("Unable to connect to device.");
+            console.log("Unable to connect to device.");
+            return;
         }
         CONNECTION_ID = connectInfo.connectionId;
+
+        // device.collections : array of 'collection' objects, collections of report descriptors
+        device.collections.forEach(collection => {
+            // collection.reportIds : array of report_ID integers
+            collection.reportIds.forEach(report_ID => {
+                var option = document.createElement('option');
+                option.text = report_ID;
+                option.id = report_ID;
+                ui.report_ID_selector.options.add(option);
+            });
+        });
+        ui.report_ID_selector.selectedIndex = -1;
+
         logger("Connected to [" +
             selectedItem.device.vendorId.toString(16) + ":" + selectedItem.device.productId.toString(16) +
             "] on ID " + CONNECTION_ID);
@@ -148,6 +182,7 @@ var onDisconnectClicked = function () {
     chrome.hid.disconnect(CONNECTION_ID, function () {
         CONNECTION_ID = null;
     });
+    ui.report_ID_selector.length = 0;
     logger("Disconnected ID " + CONNECTION_ID);
     enableIOControls(false);
 };
@@ -176,22 +211,28 @@ var onSelectFileClicked = function () {
     });
 };
 
-var onPollChanged = function () {
+function poll_changed () {
     if (CONNECTION_ID === null) {
         enableIOControls(false);
         clearTimeout(POLLER_ID);
         return;
     }
     if (ui.poll.checked === true) {
-        parser = ui.raw.checked ? hex_parser : string_parser;
+        var parser = ui.raw.checked ? hex_parser : string_parser;
         chrome.hid.receive(CONNECTION_ID, (report_ID, buffer) => {
             logger(report_ID + ": " + parser(buffer));
-            POLLER_ID = setTimeout(onPollChanged, 0);
+            POLLER_ID = setTimeout(poll_changed, 0);
         })
     } else {
         clearTimeout(POLLER_ID);
     }
-};
+}
+
+function send_input_clicked () {
+    var report_ID = ui.report_ID_selector.options[ui.report_ID_selector.selectedIndex].id;
+    var input_text = ui.input_value.text;
+    console.log(report_ID + ": " + input_text);
+}
 
 var onUploadClicked = function () {
     chrome.storage.local.get('chosenFile', function (items) {
