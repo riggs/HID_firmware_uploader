@@ -43,13 +43,13 @@ let _data_types = {
     Float64: {bits: 64, from: Float64Array},
 };
 
-let Uint64Array = {
+var Uint64Array = {
     from: array => {
         //TODO
     }
 };
 
-let Int64Array = {
+var Int64Array = {
     from: array => {
         //TODO
     }
@@ -87,6 +87,7 @@ function hex_parser (buffer) {
         })
         .join(" ");
 }
+window.hex_parser = hex_parser;
 
 function string_parser (buffer) {
     return new TextDecoder('utf-8').decode(buffer);
@@ -116,11 +117,21 @@ function number_encoder (string) {
         throw new Error("Invalid input.");
     }
     console.log(value);
-    return value;
+
+    let buffer = new ArrayBuffer(4);
+    new Float32Array(buffer)[0] = value;
+
+    return buffer;
 }
 
 function string_encoder (string) {
-    return new TextEncoder('utf-8').encode(string);
+    let string_buffer = new TextEncoder('utf-8').encode(string);
+    console.log(hex_encoder(string_buffer));
+    let buffer = new ArrayBuffer(string_buffer.byteLength + 1);
+    new DataView(buffer).setUint8(0, string_buffer.byteLength);
+    new Uint8Array(buffer, 1).set(new Uint8Array(buffer));
+    console.log(hex_encoder(buffer));
+    return buffer;
 }
 
 var enableIOControls = function (ioEnabled) {
@@ -216,11 +227,10 @@ var onConnectClicked = function () {
             collection.reportIds.forEach(report_ID => {
                 var option = document.createElement('option');
                 option.text = report_ID;
-                option.id = report_ID;
                 ui.report_ID_selector.options.add(option);
             });
         });
-        ui.report_ID_selector.selectedIndex = -1;
+        ui.report_ID_selector.selectedIndex = 0;
 
         logger("Connected to [" +
             selectedItem.device.vendorId.toString(16) + ":" + selectedItem.device.productId.toString(16) +
@@ -233,6 +243,7 @@ var onDisconnectClicked = function () {
     if (CONNECTION_ID === null) {
         return;
     }
+    if (POLLER_ID) {clearTimeout(POLLER_ID);}
     chrome.hid.disconnect(CONNECTION_ID, function () {
         CONNECTION_ID = null;
     });
@@ -283,16 +294,18 @@ function receive_changed () {
 }
 
 function get_feature_report () {
-    var report_ID = ui.report_ID_selector.options[ui.report_ID_selector.selectedIndex].id;
+    let report_ID = Number(ui.report_ID_selector.options[ui.report_ID_selector.selectedIndex].text);
+    if (!report_ID) {return}
 
     chrome.hid.receiveFeatureReport(CONNECTION_ID, report_ID, buffer => {
-        let parser = ui.raw_hex_input.checked ? hex_parser : string_parser;
+        let parser = ui.raw.checked ? hex_parser : string_parser;
+        // First number is string length.
         logger(parser(buffer));
     });
 }
 
 function _send_report(report_function) {
-    let report_ID = ui.report_ID_selector.options[ui.report_ID_selector.selectedIndex].id;
+    let report_ID = Number(ui.report_ID_selector.options[ui.report_ID_selector.selectedIndex].text);
     let input_text = ui.input_value.value;
 
     var buffer = null;
@@ -305,6 +318,7 @@ function _send_report(report_function) {
         } catch (e) {
             try {
                 buffer = string_encoder(input_text);
+
             } catch (e) {
                 logger(e);
             }
