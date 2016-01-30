@@ -22,7 +22,7 @@ var ui = {
     raw: null,
     report_ID_selector: null,
     input_value: null,
-    raw_input: null,
+    raw_hex_input: null,
     send_input: null,
     log: null,
 };
@@ -59,15 +59,31 @@ function hex_parser (buffer) {
 }
 
 function hex_encoder (string) {
+    console.log(string);
+    // Remove spaces, commas, 0x prefixes.
+    let hex_string = string.replace(/[ ,]|(0x)/g, "");
+    console.log(hex_string);
 
+    if (hex_string.length % 2) {
+        throw new Error("Invalid Hex input.");
+    }
+
+    let buffer = new ArrayBuffer(hex_string.length / 2);
+    var hex = new Uint8Array(buffer);
+
+    for (var i=0; i < hex_string.length; i += 2) {
+        hex[i/2] = parseInt(hex_string.slice(i, i+2), 16);
+    }
+    return buffer
 }
+window.hex_encoder = hex_encoder;
 
 function string_parser (buffer) {
     return new TextDecoder('utf-8').decode(buffer);
 }
 
-function string_encoder (text) {
-    return new TextEncoder('utf-i').encode(string);
+function string_encoder (string) {
+    return new TextEncoder('utf-8').encode(string);
 }
 
 var enableIOControls = function (ioEnabled) {
@@ -230,8 +246,15 @@ function poll_changed () {
 
 function send_input_clicked () {
     var report_ID = ui.report_ID_selector.options[ui.report_ID_selector.selectedIndex].id;
-    var input_text = ui.input_value.text;
-    console.log(report_ID + ": " + input_text);
+    var input_text = ui.input_value.value;
+
+    var encoder = ui.raw_hex_input.checked ? hex_encoder : string_encoder ;
+
+    try {
+        console.log(report_ID + ": " + hex_parser(encoder(input_text)));
+    } catch (e) {
+        logger(e);
+    }
 }
 
 var onUploadClicked = function () {
@@ -253,7 +276,6 @@ var onUploadClicked = function () {
                     clearFileUI();
                     return;
                 }
-
                 upload_firmware(entry);
             });
         });
