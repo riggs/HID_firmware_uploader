@@ -75,6 +75,18 @@ var initializeWindow = function () {
     enumerateDevices();
 };
 
+var enableIOControls = function (ioEnabled) {
+    ui.device_selector.disabled = ioEnabled;
+    ui.connect.style.display = ioEnabled ? 'none' : 'inline';
+    ui.disconnect.style.display = ioEnabled ? 'inline' : 'none';
+    ui.upload.disabled = ui.file_path.innerText === "" ? true : !ioEnabled;
+    ui.receive.checked = ioEnabled ? ui.receive.checked : false;
+    ui.receive.disabled = !ioEnabled;
+    ui.get_feature.disabled = !ioEnabled;
+    ui.send_input.disabled = !ioEnabled;
+    ui.set_feature.disabled = !ioEnabled;
+};
+
 var logger = function (message) {
     ui.log.textContent += (message + "\n");
     ui.log.scrollTop = ui.log.scrollHeight;
@@ -94,11 +106,12 @@ function string_parser (buffer) {
 }
 
 function hex_encoder (string) {
+    console.log(string);
     // Remove spaces, commas, 0x prefixes.
     let hex_string = string.replace(/[ ,]|(0x)/g, "");
 
     if (hex_string.length % 2) {
-        throw new Error("Invalid Hex input.");
+        throw new TypeError("Invalid Hex input.");
     }
     console.log(hex_string);
 
@@ -106,7 +119,11 @@ function hex_encoder (string) {
     var hex = new Uint8Array(buffer);
 
     for (var i=0; i < hex_string.length; i += 2) {
-        hex[i/2] = parseInt(hex_string.slice(i, i+2), 16);
+        var value = parseInt(hex_string.slice(i, i+2), 16);
+        if (isNaN(value)) {
+            throw new TypeError("Invalid Hex input.");
+        }
+        hex[i/2] = value;
     }
     return buffer
 }
@@ -114,7 +131,7 @@ function hex_encoder (string) {
 function number_encoder (string) {
     let value = Number(string);
     if (Number.isNaN(value)) {
-        throw new Error("Invalid input.");
+        throw new TypeError("Invalid Number input.");
     }
     console.log(value);
 
@@ -126,24 +143,13 @@ function number_encoder (string) {
 
 function string_encoder (string) {
     let string_buffer = new TextEncoder('utf-8').encode(string);
-    console.log(hex_encoder(string_buffer));
+    console.log(hex_parser(string_buffer));
     let buffer = new ArrayBuffer(string_buffer.byteLength + 1);
     new DataView(buffer).setUint8(0, string_buffer.byteLength);
-    new Uint8Array(buffer, 1).set(new Uint8Array(buffer));
-    console.log(hex_encoder(buffer));
+    new Uint8Array(buffer, 1).set(new Uint8Array(string_buffer));
+    console.log(hex_parser(buffer));
     return buffer;
 }
-
-var enableIOControls = function (ioEnabled) {
-    ui.device_selector.disabled = ioEnabled;
-    ui.connect.style.display = ioEnabled ? 'none' : 'inline';
-    ui.disconnect.style.display = ioEnabled ? 'inline' : 'none';
-    ui.upload.disabled = ui.file_path.innerText === "" ? true : !ioEnabled;
-    ui.receive.disabled = !ioEnabled;
-    ui.get_feature.disabled = !ioEnabled;
-    ui.send_input.disabled = !ioEnabled;
-    ui.set_feature.disabled = !ioEnabled;
-};
 
 var enumerateDevices = function () {
     chrome.hid.getDevices({}, onDevicesEnumerated);
@@ -318,9 +324,10 @@ function _send_report(report_function) {
         } catch (e) {
             try {
                 buffer = string_encoder(input_text);
-
             } catch (e) {
                 logger(e);
+                throw e;
+                return;
             }
         }
     }
