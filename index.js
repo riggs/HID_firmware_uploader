@@ -18,13 +18,41 @@ var ui = {
     select_file: null,
     file_path: null,
     upload: null,
-    poll: null,
+    receive: null,
     raw: null,
     report_ID_selector: null,
+    get_feature: null,
     input_value: null,
-    raw_hex_input: null,
+    //data_type: null,
     send_input: null,
+    set_feature: null,
     log: null,
+};
+
+// TODO: Add/remove fields, each with own data type & multiple values of same type.
+let _data_types = {
+    Uint8: {bits: 8, from: Uint8Array},
+    Uint16: {bits: 16, from: Uint16Array},
+    Uint32: {bits: 32, from: Uint32Array},
+    Uint64: {bits: 64, from: Uint64Array},
+    Int8: {bits: 8, from: Int8Array},
+    Int16: {bits: 16, from: Int16Array},
+    Int32: {bits: 32, from: Int32Array},
+    Int64: {bits: 64, from: Int64Array},
+    Float32: {bits: 32, from: Float32Array},
+    Float64: {bits: 64, from: Float64Array},
+};
+
+let Uint64Array = {
+    from: array => {
+        //TODO
+    }
+};
+
+let Int64Array = {
+    from: array => {
+        //TODO
+    }
 };
 
 var initializeWindow = function () {
@@ -40,8 +68,10 @@ var initializeWindow = function () {
     ui.disconnect.addEventListener('click', onDisconnectClicked);
     ui.select_file.addEventListener('click', onSelectFileClicked);
     ui.upload.addEventListener('click', onUploadClicked);
-    ui.poll.addEventListener('change', poll_changed);
+    ui.receive.addEventListener('change', receive_changed);
+    ui.get_feature.addEventListener('click', get_feature_report);
     ui.send_input.addEventListener('click', send_input_clicked);
+    ui.set_feature.addEventListener('click', set_feature_report_clicked);
     enumerateDevices();
 };
 
@@ -58,15 +88,18 @@ function hex_parser (buffer) {
         .join(" ");
 }
 
+function string_parser (buffer) {
+    return new TextDecoder('utf-8').decode(buffer);
+}
+
 function hex_encoder (string) {
-    console.log(string);
     // Remove spaces, commas, 0x prefixes.
     let hex_string = string.replace(/[ ,]|(0x)/g, "");
-    console.log(hex_string);
 
     if (hex_string.length % 2) {
         throw new Error("Invalid Hex input.");
     }
+    console.log(hex_string);
 
     let buffer = new ArrayBuffer(hex_string.length / 2);
     var hex = new Uint8Array(buffer);
@@ -76,10 +109,14 @@ function hex_encoder (string) {
     }
     return buffer
 }
-window.hex_encoder = hex_encoder;
 
-function string_parser (buffer) {
-    return new TextDecoder('utf-8').decode(buffer);
+function number_encoder (string) {
+    let value = Number(string);
+    if (Number.isNaN(value)) {
+        throw new Error("Invalid input.");
+    }
+    console.log(value);
+    return value;
 }
 
 function string_encoder (string) {
@@ -91,9 +128,10 @@ var enableIOControls = function (ioEnabled) {
     ui.connect.style.display = ioEnabled ? 'none' : 'inline';
     ui.disconnect.style.display = ioEnabled ? 'inline' : 'none';
     ui.upload.disabled = ui.file_path.innerText === "" ? true : !ioEnabled;
-    ui.poll.disabled = !ioEnabled;
-    ui.raw.disabled = !ioEnabled;
+    ui.receive.disabled = !ioEnabled;
+    ui.get_feature.disabled = !ioEnabled;
     ui.send_input.disabled = !ioEnabled;
+    ui.set_feature.disabled = !ioEnabled;
 };
 
 var enumerateDevices = function () {
@@ -227,34 +265,63 @@ var onSelectFileClicked = function () {
     });
 };
 
-function poll_changed () {
+function receive_changed () {
     if (CONNECTION_ID === null) {
         enableIOControls(false);
         clearTimeout(POLLER_ID);
         return;
     }
-    if (ui.poll.checked === true) {
+    if (ui.receive.checked === true) {
         var parser = ui.raw.checked ? hex_parser : string_parser;
         chrome.hid.receive(CONNECTION_ID, (report_ID, buffer) => {
             logger(report_ID + ": " + parser(buffer));
-            POLLER_ID = setTimeout(poll_changed, 0);
+            POLLER_ID = setTimeout(receive_changed, 0);
         })
     } else {
         clearTimeout(POLLER_ID);
     }
 }
 
-function send_input_clicked () {
+function get_feature_report () {
     var report_ID = ui.report_ID_selector.options[ui.report_ID_selector.selectedIndex].id;
-    var input_text = ui.input_value.value;
 
-    var encoder = ui.raw_hex_input.checked ? hex_encoder : string_encoder ;
+    chrome.hid.receiveFeatureReport(CONNECTION_ID, report_ID, buffer => {
+        let parser = ui.raw_hex_input.checked ? hex_parser : string_parser;
+        logger(parser(buffer));
+    });
+}
+
+function _send_report(report_function) {
+    let report_ID = ui.report_ID_selector.options[ui.report_ID_selector.selectedIndex].id;
+    let input_text = ui.input_value.value;
+
+    var buffer = null;
 
     try {
-        console.log(report_ID + ": " + hex_parser(encoder(input_text)));
+        buffer = hex_encoder(input_text);
     } catch (e) {
-        logger(e);
+        try {
+            buffer = number_encoder(input_text);
+        } catch (e) {
+            try {
+                buffer = string_encoder(input_text);
+            } catch (e) {
+                logger(e);
+            }
+        }
     }
+
+    report_function.call(chrome.hid, CONNECTION_ID, report_ID, buffer, () => {
+        logger("Sent on " + report_ID + ": " + hex_parser(buffer));
+    })
+}
+
+function send_input_clicked () {
+    _send_report(chrome.hid.send);
+}
+
+function set_feature_report_clicked () {
+    _send_report(chrome.hid.sendFeatureReport)
 }
 
 var onUploadClicked = function () {

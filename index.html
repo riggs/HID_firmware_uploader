@@ -26,13 +26,20 @@
     <button id="upload" disabled>Upload</button>
   </div>
   <div id="io">
-    <label><input type="checkbox" id="poll"> Poll Device</label>
+    <label><input type="checkbox" id="receive"> Receive</label>
     <label><input type="checkbox" id="raw"> Display Raw Hex</label>
     <div id="input">
       Report ID: <select id="report_ID_selector"></select>
+      <button id="get_feature">Get Feature Report</button>
+      <br/>
       Value: <input type="text" id="input_value">
-      <label><input type="checkbox" id="raw_hex_input"> Input Raw Hex</label>
+
+      <!-- TODO: Multiple fields each with their own selected data type.
+      Data Type: <select id="data_type"></select>
+      -->
+
       <button id="send_input" disabled>Send</button>
+      <button id="set_feature">Set Feature Report</button>
     </div>
   </div>
   <div id="logger">
