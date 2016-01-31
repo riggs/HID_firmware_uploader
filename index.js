@@ -102,7 +102,7 @@ function hex_parser (buffer) {
 window.hex_parser = hex_parser;
 
 function string_parser (buffer) {
-    return new TextDecoder('utf-8').decode(buffer);
+    return new TextDecoder('utf-8').decode(new DataView(buffer.slice(1)));
 }
 
 function hex_encoder (string) {
@@ -304,8 +304,8 @@ function get_feature_report () {
     if (!report_ID) {return}
 
     chrome.hid.receiveFeatureReport(CONNECTION_ID, report_ID, buffer => {
-        let parser = ui.raw.checked ? hex_parser : string_parser;
-        // First number is string length.
+        let parser = ui.raw.checked ? hex_parser : buf => string_parser(buf.slice(1));
+        // First number is report ID. 2nd is String length.
         logger(parser(buffer));
     });
 }
@@ -326,7 +326,6 @@ function _send_report(report_function) {
                 buffer = string_encoder(input_text);
             } catch (e) {
                 logger(e);
-                throw e;
                 return;
             }
         }
