@@ -127,6 +127,7 @@ function hex_encoder (string) {
     }
     return buffer
 }
+window.hex_encoder = hex_encoder;
 
 function number_encoder (string) {
     let value = Number(string);
@@ -150,6 +151,7 @@ function string_encoder (string) {
     console.log(hex_parser(buffer));
     return buffer;
 }
+window.string_encoder = string_encoder;
 
 var enumerateDevices = function () {
     chrome.hid.getDevices({}, onDevicesEnumerated);
